@@ -46,17 +46,29 @@ var CT_ALL_TOKENS = [];
 var LAST_CREATED_TOKEN = null;
 
 window.onload = function() {
-// Read API URL: from sessionStorage (set by Apps Script loader) or window.location
-var apiRaw = sessionStorage.getItem("__WODMS_API__");
-API = apiRaw || window.location.href.split("?")[0];
-initClock();
-// Read SSO: from sessionStorage (GitHub Pages flow) or injected script tag (direct GAS flow)
+// Decode web-safe base64 (used by Apps Script Utilities.base64EncodeWebSafe)
+function b64decode(str) {
+  return atob(str.replace(/-/g, "+").replace(/_/g, "/"));
+}
+// Read SSO and API from URL hash: #sso=BASE64&api=BASE64
 var ssoResult = null;
-var ssoRaw = sessionStorage.getItem("__WODMS_SSO__");
-if (ssoRaw) { try { ssoResult = JSON.parse(ssoRaw); } catch(e) {} }
+var hash = window.location.hash.slice(1);
+if (hash) {
+  var parts = {};
+  hash.split("&").forEach(function(p) {
+    var kv = p.split("="); parts[kv[0]] = kv.slice(1).join("=");
+  });
+  if (parts.api) { try { API = b64decode(parts.api); } catch(e) {} }
+  if (parts.sso) { try { ssoResult = JSON.parse(b64decode(parts.sso)); } catch(e) {} }
+  // Clear hash so SSO data is not visible in address bar
+  history.replaceState(null, "", window.location.pathname);
+}
+// Fallback: injected script tag (direct GAS serving without GitHub Pages)
 if (!ssoResult && typeof __SSO_RESULT__ !== "undefined") ssoResult = __SSO_RESULT__;
+if (!API) API = window.location.href.split("?")[0];
+initClock();
 if (!ssoResult) {
-showLoginError("Could not read SSO data. Please open the app via the Apps Script URL.");
+showLoginError("Could not read SSO data. Please open the app via the Apps Script deployment URL.");
 return;
 }
 if (!ssoResult.ok) {
